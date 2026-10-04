@@ -44,3 +44,12 @@ ON odds_snapshots(sportsbook_key);
 
 CREATE INDEX IF NOT EXISTS idx_odds_snapshot_time
 ON odds_snapshots(snapshot_time);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_odds_unique_snapshot
+ON odds_snapshots (
+    collection_run_id,
+    event_id,
+    sportsbook_key,
+    market_key,
+    outcome_name
+);
