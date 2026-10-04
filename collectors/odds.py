@@ -89,7 +89,7 @@ def collect():
     if not API_KEY:
         print("STATUS: CONFIGURATION_ERROR")
         print("ODDS_API_KEY is missing from .env")
-        return
+        return "CONFIGURATION_ERROR"
 
     url = f"{BASE_URL}/sports/{SPORT}/odds/"
 
@@ -142,10 +142,7 @@ def collect():
 
         print("STATUS: DATA_SOURCE_FAILURE")
         print(f"Saved failure snapshot: {path}")
-        return
-        print("STATUS: DATA_SOURCE_FAILURE")
-        print(f"Saved failure snapshot: {path}")
-        return
+        return "DATA_SOURCE_FAILURE"
 
     except ValueError as exc:
         error_message = f"Invalid JSON: {exc}"
@@ -186,7 +183,7 @@ def collect():
 
         print("STATUS: INVALID_RESPONSE")
         print(f"Saved snapshot: {path}")
-        return
+        return "INVALID_RESPONSE"
 
     if len(data) == 0:
         metadata["event_count"] = 0
@@ -209,7 +206,7 @@ def collect():
         print("STATUS: EMPTY_MARKET")
         print("The API returned zero MLB events.")
         print(f"Saved snapshot: {path}")
-        return
+        return "EMPTY_MARKET"
 
     bookmaker_count = sum(
         len(event.get("bookmakers", []))
@@ -250,7 +247,7 @@ def collect():
 
     print(f"Saved snapshot: {path}")
     print("Collection run recorded in SQLite.")
-
+    return status
 
 if __name__ == "__main__":
     collect()
