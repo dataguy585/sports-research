@@ -16,7 +16,7 @@ def main():
     normalize_snapshot()
 
     print("\n[3/3] Building market benchmark...")
-    build_market_benchmark()
+    build_market_benchmark(quiet=True)
 
     print("\nPipeline complete.")
 
