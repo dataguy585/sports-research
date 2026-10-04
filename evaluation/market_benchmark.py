@@ -1,6 +1,7 @@
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
+from datetime import datetime, timezone
 
 from evaluation.market_math import american_to_implied, remove_vig
 
@@ -17,16 +18,25 @@ def main():
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
 
-        latest_run = conn.execute(
+        latest_run_row = conn.execute(
             """
-            SELECT MAX(collection_run_id) AS run_id
-            FROM odds_snapshots
+            SELECT
+                cr.id AS run_id,
+                cr.retrieved_at
+            FROM collection_runs cr
+            WHERE cr.id = (
+                SELECT MAX(collection_run_id)
+                FROM odds_snapshots
+            )
             """
-        ).fetchone()["run_id"]
+        ).fetchone()
 
-        if latest_run is None:
+        if latest_run_row is None:
             print("No normalized odds found.")
             return
+
+        latest_run = latest_run_row["run_id"]
+        snapshot_time = latest_run_row["retrieved_at"]
 
         rows = conn.execute(
             """
@@ -110,7 +120,7 @@ def main():
                 ].append(fair_prob)
 
         print()
-
+    benchmark_rows = []
     print("=== CONSENSUS NO-VIG BENCHMARK ===\n")
 
     seen_events = set()
@@ -140,7 +150,19 @@ def main():
             outcome_data.items()
         ):
             consensus = sum(probs) / len(probs)
-
+            benchmark_rows.append(
+                (
+                    latest_run,
+                    snapshot_time,
+                    event_id,
+                    row["home_team"],
+                    row["away_team"],
+                    outcome_name,
+                    consensus,
+                    len(probs),
+                    datetime.now(timezone.utc).isoformat(),
+                )
+            )
             print(
                 f"  {outcome_name}: "
                 f"{consensus:.4f} "
@@ -149,7 +171,31 @@ def main():
             )
 
         print()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO market_benchmarks (
+                collection_run_id,
+                snapshot_time,
+                event_id,
+                home_team,
+                away_team,
+                outcome_name,
+                consensus_probability,
+                sportsbook_count,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            benchmark_rows,
+        )
 
+        conn.commit()
+
+    print(
+        f"Saved {len(benchmark_rows)} market benchmark rows "
+        f"for collection run {latest_run}."
+    )
 
 if __name__ == "__main__":
     main()

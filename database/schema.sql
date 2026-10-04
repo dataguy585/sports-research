@@ -53,3 +53,30 @@ ON odds_snapshots (
     market_key,
     outcome_name
 );
+CREATE TABLE IF NOT EXISTS market_benchmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_run_id INTEGER NOT NULL,
+    snapshot_time TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    home_team TEXT,
+    away_team TEXT,
+    outcome_name TEXT NOT NULL,
+    consensus_probability REAL NOT NULL,
+    sportsbook_count INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (collection_run_id)
+        REFERENCES collection_runs(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_benchmark_unique
+ON market_benchmarks (
+    collection_run_id,
+    event_id,
+    outcome_name
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_benchmark_event
+ON market_benchmarks(event_id);
+
+CREATE INDEX IF NOT EXISTS idx_market_benchmark_snapshot
+ON market_benchmarks(snapshot_time);
