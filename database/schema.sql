@@ -15,3 +15,32 @@ CREATE TABLE IF NOT EXISTS collection_runs (
     payload_sha256 TEXT,
     error_message TEXT
 );
+
+
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_run_id INTEGER NOT NULL,
+    snapshot_time TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    commence_time TEXT,
+    home_team TEXT,
+    away_team TEXT,
+    sportsbook_key TEXT NOT NULL,
+    sportsbook_name TEXT,
+    market_key TEXT NOT NULL,
+    outcome_name TEXT NOT NULL,
+    price REAL,
+    point REAL,
+    last_update TEXT,
+    FOREIGN KEY (collection_run_id)
+        REFERENCES collection_runs(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_odds_event
+ON odds_snapshots(event_id);
+
+CREATE INDEX IF NOT EXISTS idx_odds_sportsbook
+ON odds_snapshots(sportsbook_key);
+
+CREATE INDEX IF NOT EXISTS idx_odds_snapshot_time
+ON odds_snapshots(snapshot_time);
