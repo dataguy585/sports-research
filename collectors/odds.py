@@ -31,7 +31,7 @@ def utc_now():
 
 def save_snapshot(payload, status, metadata=None):
     retrieved_at = utc_now()
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
     raw_json = json.dumps(payload, sort_keys=True)
     payload_hash = hashlib.sha256(raw_json.encode()).hexdigest()
@@ -122,6 +122,9 @@ def collect():
     except requests.RequestException as exc:
         error_message = str(exc)
 
+        if API_KEY:
+            error_message = error_message.replace(API_KEY, "[REDACTED]")
+
         path, payload_hash, retrieved_at = save_snapshot(
             payload={"error": error_message},
             status="DATA_SOURCE_FAILURE",
@@ -137,6 +140,9 @@ def collect():
             error_message=error_message,
         )
 
+        print("STATUS: DATA_SOURCE_FAILURE")
+        print(f"Saved failure snapshot: {path}")
+        return
         print("STATUS: DATA_SOURCE_FAILURE")
         print(f"Saved failure snapshot: {path}")
         return
