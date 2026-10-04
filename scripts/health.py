@@ -4,7 +4,11 @@ import sqlite3
 
 DB_PATH = Path("database/sports.db")
 STALE_AFTER_HOURS = 6
-
+EXPECTED_SPORTSBOOKS = {
+    "fanduel",
+    "draftkings",
+    "betmgm",
+}
 
 def parse_timestamp(value):
     if not value:
@@ -73,6 +77,22 @@ def main():
             """
         ).fetchone()
 
+        latest_sportsbooks = conn.execute(
+            """
+            SELECT DISTINCT sportsbook_key
+            FROM odds_snapshots
+            WHERE collection_run_id = (
+                SELECT MAX(collection_run_id)
+                FROM odds_snapshots
+            )
+            """
+        ).fetchall()
+    sportsbook_keys = {
+        row["sportsbook_key"]
+        for row in latest_sportsbooks
+    }
+
+    missing_sportsbooks = EXPECTED_SPORTSBOOKS - sportsbook_keys
     print("=== SPORTS RESEARCH HEALTH ===")
 
     if latest_run is None:
@@ -87,6 +107,8 @@ def main():
         overall_status = "DEGRADED"
     elif age > STALE_AFTER_HOURS:
         overall_status = "STALE"
+    elif missing_sportsbooks:
+        overall_status = "DEGRADED"
     else:
         overall_status = "HEALTHY"
 
@@ -130,7 +152,17 @@ def main():
             f"  Rows in latest normalized run: "
             f"{latest_normalized['row_count']}"
         )
+    print("\nSportsbook coverage:")
+    print(f"  Expected: {', '.join(sorted(EXPECTED_SPORTSBOOKS))}")
+    print(f"  Received: {', '.join(sorted(sportsbook_keys))}")
 
+    if missing_sportsbooks:
+        print(
+            f"  Missing: "
+            f"{', '.join(sorted(missing_sportsbooks))}"
+        )
+    else:
+        print("  Missing: none")
 
 if __name__ == "__main__":
     main()
