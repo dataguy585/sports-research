@@ -7,6 +7,9 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from database.db import log_collection_run
+
+
 load_dotenv()
 
 API_KEY = os.getenv("ODDS_API_KEY")
@@ -27,13 +30,14 @@ def utc_now():
 
 
 def save_snapshot(payload, status, metadata=None):
+    retrieved_at = utc_now()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     raw_json = json.dumps(payload, sort_keys=True)
     payload_hash = hashlib.sha256(raw_json.encode()).hexdigest()
 
     record = {
-        "retrieved_at": utc_now(),
+        "retrieved_at": retrieved_at,
         "source": "the_odds_api",
         "sport": SPORT,
         "markets": MARKETS,
@@ -48,7 +52,35 @@ def save_snapshot(payload, status, metadata=None):
     with open(path, "w") as f:
         json.dump(record, f, indent=2)
 
-    return path
+    return path, payload_hash, retrieved_at
+
+
+def record_run(
+    status,
+    path,
+    payload_hash,
+    retrieved_at,
+    metadata=None,
+    error_message=None,
+):
+    metadata = metadata or {}
+
+    log_collection_run(
+        retrieved_at=retrieved_at,
+        source="the_odds_api",
+        sport=SPORT,
+        market=MARKETS,
+        status=status,
+        http_status=metadata.get("http_status"),
+        event_count=metadata.get("event_count"),
+        bookmaker_count=metadata.get("bookmaker_count"),
+        requests_remaining=metadata.get("requests_remaining"),
+        requests_used=metadata.get("requests_used"),
+        requests_last=metadata.get("requests_last"),
+        snapshot_path=str(path),
+        payload_sha256=payload_hash,
+        error_message=error_message,
+    )
 
 
 def collect():
@@ -68,6 +100,8 @@ def collect():
         "oddsFormat": ODDS_FORMAT,
     }
 
+    metadata = {}
+
     try:
         response = requests.get(
             url,
@@ -75,24 +109,32 @@ def collect():
             timeout=20,
         )
 
-        remaining = response.headers.get("x-requests-remaining")
-        used = response.headers.get("x-requests-used")
-        last = response.headers.get("x-requests-last")
-
         metadata = {
             "http_status": response.status_code,
-            "requests_remaining": remaining,
-            "requests_used": used,
-            "requests_last": last,
+            "requests_remaining": response.headers.get("x-requests-remaining"),
+            "requests_used": response.headers.get("x-requests-used"),
+            "requests_last": response.headers.get("x-requests-last"),
         }
 
         response.raise_for_status()
         data = response.json()
 
     except requests.RequestException as exc:
-        path = save_snapshot(
-            payload={"error": str(exc)},
+        error_message = str(exc)
+
+        path, payload_hash, retrieved_at = save_snapshot(
+            payload={"error": error_message},
             status="DATA_SOURCE_FAILURE",
+            metadata=metadata,
+        )
+
+        record_run(
+            status="DATA_SOURCE_FAILURE",
+            path=path,
+            payload_hash=payload_hash,
+            retrieved_at=retrieved_at,
+            metadata=metadata,
+            error_message=error_message,
         )
 
         print("STATUS: DATA_SOURCE_FAILURE")
@@ -100,9 +142,21 @@ def collect():
         return
 
     except ValueError as exc:
-        path = save_snapshot(
-            payload={"error": f"Invalid JSON: {exc}"},
+        error_message = f"Invalid JSON: {exc}"
+
+        path, payload_hash, retrieved_at = save_snapshot(
+            payload={"error": error_message},
             status="DATA_SOURCE_FAILURE",
+            metadata=metadata,
+        )
+
+        record_run(
+            status="DATA_SOURCE_FAILURE",
+            path=path,
+            payload_hash=payload_hash,
+            retrieved_at=retrieved_at,
+            metadata=metadata,
+            error_message=error_message,
         )
 
         print("STATUS: DATA_SOURCE_FAILURE")
@@ -110,9 +164,17 @@ def collect():
         return
 
     if not isinstance(data, list):
-        path = save_snapshot(
+        path, payload_hash, retrieved_at = save_snapshot(
             payload=data,
             status="INVALID_RESPONSE",
+            metadata=metadata,
+        )
+
+        record_run(
+            status="INVALID_RESPONSE",
+            path=path,
+            payload_hash=payload_hash,
+            retrieved_at=retrieved_at,
             metadata=metadata,
         )
 
@@ -121,9 +183,20 @@ def collect():
         return
 
     if len(data) == 0:
-        path = save_snapshot(
+        metadata["event_count"] = 0
+        metadata["bookmaker_count"] = 0
+
+        path, payload_hash, retrieved_at = save_snapshot(
             payload=data,
             status="EMPTY_MARKET",
+            metadata=metadata,
+        )
+
+        record_run(
+            status="EMPTY_MARKET",
+            path=path,
+            payload_hash=payload_hash,
+            retrieved_at=retrieved_at,
             metadata=metadata,
         )
 
@@ -137,17 +210,25 @@ def collect():
         for event in data
     )
 
+    metadata["event_count"] = len(data)
+    metadata["bookmaker_count"] = bookmaker_count
+
     if bookmaker_count == 0:
         status = "PARTIAL_DATA"
     else:
         status = "VALID"
 
-    metadata["event_count"] = len(data)
-    metadata["bookmaker_count"] = bookmaker_count
-
-    path = save_snapshot(
+    path, payload_hash, retrieved_at = save_snapshot(
         payload=data,
         status=status,
+        metadata=metadata,
+    )
+
+    record_run(
+        status=status,
+        path=path,
+        payload_hash=payload_hash,
+        retrieved_at=retrieved_at,
         metadata=metadata,
     )
 
@@ -155,10 +236,14 @@ def collect():
     print(f"MLB events received: {len(data)}")
     print(f"Bookmaker blocks received: {bookmaker_count}")
 
-    if remaining is not None:
-        print(f"API requests remaining: {remaining}")
+    if metadata.get("requests_remaining") is not None:
+        print(
+            f"API requests remaining: "
+            f"{metadata['requests_remaining']}"
+        )
 
     print(f"Saved snapshot: {path}")
+    print("Collection run recorded in SQLite.")
 
 
 if __name__ == "__main__":
