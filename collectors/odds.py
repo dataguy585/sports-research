@@ -20,7 +20,7 @@ BASE_URL = "https://api.the-odds-api.com/v4"
 DEFAULT_CONFIG = load_sport_config("mlb")
 
 DATA_DIR = Path("data/raw/odds")
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 
 
 def utc_now():
@@ -28,6 +28,10 @@ def utc_now():
 
 
 def save_snapshot(payload, status, sport, markets, metadata=None):
+    sport_name = sport.rsplit("_", 1)[-1]
+    sport_dir = DATA_DIR / sport_name
+    sport_dir.mkdir(parents=True, exist_ok=True)
+
     retrieved_at = utc_now()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
@@ -45,7 +49,7 @@ def save_snapshot(payload, status, sport, markets, metadata=None):
         "payload": payload,
     }
 
-    path = DATA_DIR / f"odds_{timestamp}.json"
+    path = sport_dir / f"odds_{timestamp}.json"
 
     with open(path, "w") as f:
         json.dump(record, f, indent=2)

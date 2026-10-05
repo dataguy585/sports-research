@@ -80,3 +80,94 @@ ON market_benchmarks(event_id);
 
 CREATE INDEX IF NOT EXISTS idx_market_benchmark_snapshot
 ON market_benchmarks(snapshot_time);
+
+CREATE TABLE IF NOT EXISTS game_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sport TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    commence_time TEXT,
+    home_team TEXT NOT NULL,
+    away_team TEXT NOT NULL,
+    home_score INTEGER,
+    away_score INTEGER,
+    status TEXT NOT NULL,
+    winner TEXT,
+    completed_at TEXT,
+    retrieved_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_payload_sha256 TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_game_results_unique
+ON game_results (
+    sport,
+    event_id
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_results_sport
+ON game_results(sport);
+
+CREATE INDEX IF NOT EXISTS idx_game_results_status
+ON game_results(status);
+
+CREATE INDEX IF NOT EXISTS idx_game_results_commence_time
+ON game_results(commence_time);
+
+CREATE TABLE IF NOT EXISTS decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    sport TEXT NOT NULL,
+    collection_run_id INTEGER NOT NULL,
+    event_id TEXT NOT NULL,
+    commence_time TEXT,
+    home_team TEXT NOT NULL,
+    away_team TEXT NOT NULL,
+
+    market_key TEXT NOT NULL,
+    outcome_name TEXT NOT NULL,
+    sportsbook_key TEXT,
+    offered_price REAL,
+
+    market_probability REAL,
+    model_probability REAL,
+    model_edge REAL,
+
+    decision TEXT NOT NULL,
+    stake_units REAL,
+
+    model_version TEXT NOT NULL,
+    rule_version TEXT NOT NULL,
+    reason TEXT,
+
+    settled_status TEXT DEFAULT 'UNSETTLED',
+    result TEXT,
+    profit_units REAL,
+
+    FOREIGN KEY (collection_run_id)
+        REFERENCES collection_runs(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_decisions_unique_model_run
+ON decisions (
+    collection_run_id,
+    event_id,
+    market_key,
+    outcome_name,
+    model_version,
+    rule_version
+);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_event
+ON decisions(event_id);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_sport
+ON decisions(sport);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_collection_run
+ON decisions(collection_run_id);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_status
+ON decisions(decision);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_settlement
+ON decisions(settled_status);
