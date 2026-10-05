@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from config.load_config import load_sport_config
 
 import requests
 from dotenv import load_dotenv
@@ -16,10 +17,7 @@ API_KEY = os.getenv("ODDS_API_KEY")
 
 BASE_URL = "https://api.the-odds-api.com/v4"
 
-SPORT = "baseball_mlb"
-REGIONS = "us"
-MARKETS = "h2h"
-ODDS_FORMAT = "american"
+DEFAULT_CONFIG = load_sport_config("mlb")
 
 DATA_DIR = Path("data/raw/odds")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -29,7 +27,7 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def save_snapshot(payload, status, metadata=None):
+def save_snapshot(payload, status, sport, markets, metadata=None):
     retrieved_at = utc_now()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
@@ -39,8 +37,8 @@ def save_snapshot(payload, status, metadata=None):
     record = {
         "retrieved_at": retrieved_at,
         "source": "the_odds_api",
-        "sport": SPORT,
-        "markets": MARKETS,
+        "sport": sport,
+        "markets": markets,
         "status": status,
         "payload_sha256": payload_hash,
         "metadata": metadata or {},
@@ -60,16 +58,19 @@ def record_run(
     path,
     payload_hash,
     retrieved_at,
+    sport,
+    markets,
     metadata=None,
     error_message=None,
 ):
+
     metadata = metadata or {}
 
     log_collection_run(
         retrieved_at=retrieved_at,
         source="the_odds_api",
-        sport=SPORT,
-        market=MARKETS,
+        sport=sport,
+        market=markets,
         status=status,
         http_status=metadata.get("http_status"),
         event_count=metadata.get("event_count"),
@@ -83,22 +84,30 @@ def record_run(
     )
 
 
-def collect():
-    print("Starting The Odds API collection...")
+def collect(config=None):
+    if config is None:
+        config = DEFAULT_CONFIG
+
+    sport = config["sport"]
+    regions = config["regions"]
+    markets = config["markets"]
+    odds_format = config["odds_format"]
 
     if not API_KEY:
         print("STATUS: CONFIGURATION_ERROR")
         print("ODDS_API_KEY is missing from .env")
         return "CONFIGURATION_ERROR"
 
-    url = f"{BASE_URL}/sports/{SPORT}/odds/"
+    url = f"{BASE_URL}/sports/{sport}/odds/"
 
     params = {
         "apiKey": API_KEY,
-        "regions": REGIONS,
-        "markets": MARKETS,
-        "oddsFormat": ODDS_FORMAT,
+        "regions": regions,
+        "markets": markets,
+        "oddsFormat": odds_format,
     }
+
+    metadata = {}
 
     metadata = {}
 
@@ -128,6 +137,8 @@ def collect():
         path, payload_hash, retrieved_at = save_snapshot(
             payload={"error": error_message},
             status="DATA_SOURCE_FAILURE",
+            sport=sport,
+	    markets=markets,
             metadata=metadata,
         )
 
@@ -136,6 +147,8 @@ def collect():
             path=path,
             payload_hash=payload_hash,
             retrieved_at=retrieved_at,
+	    sport=sport,
+	    markets=markets,
             metadata=metadata,
             error_message=error_message,
         )
@@ -158,6 +171,8 @@ def collect():
             path=path,
             payload_hash=payload_hash,
             retrieved_at=retrieved_at,
+	    sport=sport,
+	    markets=markets,
             metadata=metadata,
             error_message=error_message,
         )
@@ -178,7 +193,9 @@ def collect():
             path=path,
             payload_hash=payload_hash,
             retrieved_at=retrieved_at,
-            metadata=metadata,
+	    sport=sport,
+	    markets=markets,
+	    metadata=metadata
         )
 
         print("STATUS: INVALID_RESPONSE")
@@ -200,11 +217,13 @@ def collect():
             path=path,
             payload_hash=payload_hash,
             retrieved_at=retrieved_at,
+	    sport=sport,
+	    markets=markets,
             metadata=metadata,
         )
 
         print("STATUS: EMPTY_MARKET")
-        print("The API returned zero MLB events.")
+        print(f"The API returned zero {config['name'].upper()} events.")
         print(f"Saved snapshot: {path}")
         return "EMPTY_MARKET"
 
@@ -224,6 +243,8 @@ def collect():
     path, payload_hash, retrieved_at = save_snapshot(
         payload=data,
         status=status,
+	sport=sport,
+	markets=markets,
         metadata=metadata,
     )
 
@@ -232,11 +253,13 @@ def collect():
         path=path,
         payload_hash=payload_hash,
         retrieved_at=retrieved_at,
+	sport=sport,
+	markets=markets,
         metadata=metadata,
     )
 
     print(f"STATUS: {status}")
-    print(f"MLB events received: {len(data)}")
+    print(f"{config['name'].upper()} events received: {len(data)}")
     print(f"Bookmaker blocks received: {bookmaker_count}")
 
     if metadata.get("requests_remaining") is not None:
