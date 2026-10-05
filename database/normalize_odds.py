@@ -17,12 +17,25 @@ def get_latest_valid_run(conn):
     ).fetchone()
 
 
-def normalize_snapshot():
+def normalize_snapshot(run_id=None):
     with sqlite3.connect(DB_PATH) as conn:
         run = get_latest_valid_run(conn)
 
+        if run_id is None:
+            run = get_latest_valid_run(conn)
+        else:
+            run = conn.execute(
+                """
+                SELECT id, retrieved_at, snapshot_path
+                FROM collection_runs
+                WHERE id = ?
+                  AND status = 'VALID'
+                """,
+                (run_id,),
+            ).fetchone()
+
         if run is None:
-            print("No VALID collection run found.")
+            print("No matching VALID collection run found.")
             return
 
         collection_run_id, snapshot_time, snapshot_path = run

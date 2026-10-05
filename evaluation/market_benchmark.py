@@ -14,22 +14,39 @@ REQUIRED_BOOKS = {
 }
 
 
-def main(quiet=False):
+def main(quiet=False, run_id=None):
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
 
-        latest_run_row = conn.execute(
-            """
-            SELECT
-                cr.id AS run_id,
-                cr.retrieved_at
-            FROM collection_runs cr
-            WHERE cr.id = (
-                SELECT MAX(collection_run_id)
-                FROM odds_snapshots
-            )
-            """
-        ).fetchone()
+        if run_id is None:
+            latest_run_row = conn.execute(
+                """
+                SELECT
+                    cr.id AS run_id,
+                    cr.retrieved_at
+                FROM collection_runs cr
+                WHERE cr.id = (
+                    SELECT MAX(collection_run_id)
+                    FROM odds_snapshots
+                )
+                """
+            ).fetchone()
+        else:
+            latest_run_row = conn.execute(
+                """
+                SELECT
+                    cr.id AS run_id,
+                    cr.retrieved_at
+                FROM collection_runs cr
+                WHERE cr.id = ?
+                  AND EXISTS (
+                      SELECT 1
+                      FROM odds_snapshots os
+                      WHERE os.collection_run_id = cr.id
+                  )
+                """,
+                (run_id,),
+            ).fetchone()
 
         if latest_run_row is None:
             print("No normalized odds found.")
@@ -126,73 +143,6 @@ def main(quiet=False):
         if not quiet:
             print()
 
-    benchmark_rows = []
-
-    if not quiet:
-        print("=== CONSENSUS NO-VIG BENCHMARK ===\n")
-
-    seen_events = set()
-
-    for row in rows:
-        event_id = row["event_id"]
-
-        if event_id in seen_events:
-            continue
-
-        seen_events.add(event_id)
-
-        matchup = (
-            f"{row['away_team']} @ "
-            f"{row['home_team']}"
-        )
-
-        if not quiet:
-            print(matchup)
-
-        outcome_data = event_consensus[event_id]
-
-        if not outcome_data:
-            if not quiet:
-                print("  No required-book consensus available.\n")
-            continue
-       
-
-        prices = [
-            market_rows[0]["price"],
-            market_rows[1]["price"],
-        ]
-
-        raw_probs = [
-            american_to_implied(price)
-            for price in prices
-        ]
-
-        fair_probs = remove_vig(raw_probs)
-
-        if not quiet:
-            print(matchup)
-            print(f"  {first['sportsbook_name']}")
-
-        for row, raw_prob, fair_prob in zip(
-            market_rows,
-            raw_probs,
-            fair_probs,
-        ):
-            if not quiet:
-                print(
-                    f"    {row['outcome_name']}: "
-                    f"{row['price']:+.0f} | "
-                    f"raw={raw_prob:.4f} | "
-                    f"no-vig={fair_prob:.4f}"
-                )
-
-            if sportsbook_key in REQUIRED_BOOKS:
-                event_consensus[event_id][
-                    row["outcome_name"]
-                ].append(fair_prob)
-
-    if not quiet:
-        print()
 
     benchmark_rows = []
 

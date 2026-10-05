@@ -21,7 +21,7 @@ def log_collection_run(
     error_message=None,
 ):
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
+      cursor =  conn.execute(
             """
             INSERT INTO collection_runs (
                 retrieved_at,
@@ -58,4 +58,8 @@ def log_collection_run(
                 error_message,
             ),
         )
-        conn.commit()
+
+
+    conn.commit()
+
+    return cursor.lastrowid

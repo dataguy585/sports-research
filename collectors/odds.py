@@ -66,7 +66,7 @@ def record_run(
 
     metadata = metadata or {}
 
-    log_collection_run(
+    run_id = log_collection_run(
         retrieved_at=retrieved_at,
         source="the_odds_api",
         sport=sport,
@@ -82,6 +82,8 @@ def record_run(
         payload_sha256=payload_hash,
         error_message=error_message,
     )
+
+    return run_id
 
 
 def collect(config=None):
@@ -248,13 +250,13 @@ def collect(config=None):
         metadata=metadata,
     )
 
-    record_run(
+    run_id = record_run(
         status=status,
         path=path,
         payload_hash=payload_hash,
         retrieved_at=retrieved_at,
-	sport=sport,
-	markets=markets,
+        sport=sport,
+        markets=markets,
         metadata=metadata,
     )
 
@@ -270,7 +272,9 @@ def collect(config=None):
 
     print(f"Saved snapshot: {path}")
     print("Collection run recorded in SQLite.")
-    return status
+    
+
+    return status, run_id
 
 if __name__ == "__main__":
     collect()
