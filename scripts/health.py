@@ -1,14 +1,14 @@
+import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 
+from config.load_config import load_sport_config
+
+
 DB_PATH = Path("database/sports.db")
 STALE_AFTER_HOURS = 6
-EXPECTED_SPORTSBOOKS = {
-    "fanduel",
-    "draftkings",
-    "betmgm",
-}
+
 
 def parse_timestamp(value):
     if not value:
@@ -23,6 +23,24 @@ def hours_old(timestamp):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Sports Research health check"
+    )
+
+    parser.add_argument(
+        "--sport",
+        choices=["mlb", "nfl"],
+        default="mlb",
+        help="Sport to inspect",
+    )
+
+    args = parser.parse_args()
+
+    config = load_sport_config(args.sport)
+
+    sport = config["sport"]
+    expected_sportsbooks = set(config["required_sportsbooks"])
+
     if not DB_PATH.exists():
         print("STATUS: DATABASE_MISSING")
         print(f"Database not found: {DB_PATH}")
@@ -35,69 +53,89 @@ def main():
             """
             SELECT *
             FROM collection_runs
+            WHERE sport = ?
             ORDER BY id DESC
             LIMIT 1
-            """
+            """,
+            (sport,),
         ).fetchone()
 
         latest_valid = conn.execute(
             """
             SELECT *
             FROM collection_runs
-            WHERE status = 'VALID'
+            WHERE sport = ?
+              AND status = 'VALID'
             ORDER BY id DESC
             LIMIT 1
-            """
+            """,
+            (sport,),
         ).fetchone()
 
         latest_failure = conn.execute(
             """
             SELECT *
             FROM collection_runs
-            WHERE status != 'VALID'
+            WHERE sport = ?
+              AND status != 'VALID'
             ORDER BY id DESC
             LIMIT 1
-            """
+            """,
+            (sport,),
         ).fetchone()
 
         total_odds_rows = conn.execute(
             """
             SELECT COUNT(*)
-            FROM odds_snapshots
-            """
+            FROM odds_snapshots os
+            JOIN collection_runs cr
+              ON cr.id = os.collection_run_id
+            WHERE cr.sport = ?
+            """,
+            (sport,),
         ).fetchone()[0]
 
         latest_normalized = conn.execute(
             """
-            SELECT collection_run_id, COUNT(*) AS row_count
-            FROM odds_snapshots
-            GROUP BY collection_run_id
-            ORDER BY collection_run_id DESC
+            SELECT
+                os.collection_run_id,
+                COUNT(*) AS row_count
+            FROM odds_snapshots os
+            JOIN collection_runs cr
+              ON cr.id = os.collection_run_id
+            WHERE cr.sport = ?
+            GROUP BY os.collection_run_id
+            ORDER BY os.collection_run_id DESC
             LIMIT 1
-            """
+            """,
+            (sport,),
         ).fetchone()
 
-        latest_sportsbooks = conn.execute(
-            """
-            SELECT DISTINCT sportsbook_key
-            FROM odds_snapshots
-            WHERE collection_run_id = (
-                SELECT MAX(collection_run_id)
+        latest_sportsbooks = []
+
+        if latest_normalized:
+            latest_sportsbooks = conn.execute(
+                """
+                SELECT DISTINCT sportsbook_key
                 FROM odds_snapshots
-            )
-            """
-        ).fetchall()
+                WHERE collection_run_id = ?
+                """,
+                (latest_normalized["collection_run_id"],),
+            ).fetchall()
+
     sportsbook_keys = {
         row["sportsbook_key"]
         for row in latest_sportsbooks
     }
 
-    missing_sportsbooks = EXPECTED_SPORTSBOOKS - sportsbook_keys
+    missing_sportsbooks = expected_sportsbooks - sportsbook_keys
+
     print("=== SPORTS RESEARCH HEALTH ===")
+    print(f"Sport: {config['name'].upper()}")
 
     if latest_run is None:
-        print("STATUS: NO_DATA")
-        print("No collection runs found.")
+        print("\nSTATUS: NO_DATA")
+        print("No collection runs found for this sport.")
         return
 
     latest_time = parse_timestamp(latest_run["retrieved_at"])
@@ -141,7 +179,7 @@ def main():
             print(f"  Error: {latest_failure['error_message']}")
 
     print("\nNormalized odds:")
-    print(f"  Total rows: {total_odds_rows}")
+    print(f"  Total rows for sport: {total_odds_rows}")
 
     if latest_normalized:
         print(
@@ -152,8 +190,9 @@ def main():
             f"  Rows in latest normalized run: "
             f"{latest_normalized['row_count']}"
         )
+
     print("\nSportsbook coverage:")
-    print(f"  Expected: {', '.join(sorted(EXPECTED_SPORTSBOOKS))}")
+    print(f"  Expected: {', '.join(sorted(expected_sportsbooks))}")
     print(f"  Received: {', '.join(sorted(sportsbook_keys))}")
 
     if missing_sportsbooks:
@@ -163,6 +202,7 @@ def main():
         )
     else:
         print("  Missing: none")
+
 
 if __name__ == "__main__":
     main()
