@@ -1,6 +1,7 @@
 import argparse
 import sqlite3
 from datetime import datetime
+from statistics import median
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -48,7 +49,83 @@ def market_confidence(sportsbook_count):
     if sportsbook_count >= 5:
         return "MEDIUM"
     return "LOW"
+def consensus_lines(conn, run_id, event_id):
+    primary_books = (
+        "fanduel",
+        "draftkings",
+        "betmgm",
+    )
 
+    placeholders = ",".join(
+        "?"
+        for _ in primary_books
+    )
+
+    spread_rows = conn.execute(
+        f"""
+        SELECT
+            outcome_name,
+            point
+        FROM odds_snapshots
+        WHERE collection_run_id = ?
+          AND event_id = ?
+          AND market_key = 'spreads'
+          AND sportsbook_key IN ({placeholders})
+          AND point IS NOT NULL
+        """,
+        (
+            run_id,
+            event_id,
+            *primary_books,
+        ),
+    ).fetchall()
+
+    total_rows = conn.execute(
+        f"""
+        SELECT
+            outcome_name,
+            point
+        FROM odds_snapshots
+        WHERE collection_run_id = ?
+          AND event_id = ?
+          AND market_key = 'totals'
+          AND sportsbook_key IN ({placeholders})
+          AND point IS NOT NULL
+        """,
+        (
+            run_id,
+            event_id,
+            *primary_books,
+        ),
+    ).fetchall()
+
+    spread_points = {}
+
+    for row in spread_rows:
+        spread_points.setdefault(
+            row["outcome_name"],
+            [],
+        ).append(row["point"])
+
+    spread_consensus = {
+        team: median(points)
+        for team, points in spread_points.items()
+        if points
+    }
+
+    total_points = [
+        row["point"]
+        for row in total_rows
+        if row["outcome_name"] == "Over"
+    ]
+
+    total_consensus = (
+        median(total_points)
+        if total_points
+        else None
+    )
+
+    return spread_consensus, total_consensus
 def load_run(conn, run_id):
     return conn.execute(
         """
@@ -122,6 +199,8 @@ def main():
             COUNT(DISTINCT sportsbook_key) AS sportsbook_count
         FROM odds_snapshots
         WHERE collection_run_id = ?
+          AND commence_time IS NOT NULL
+          AND snapshot_time < commence_time
         GROUP BY event_id
         ORDER BY commence_time, event_id
         """,
@@ -148,25 +227,55 @@ def main():
 
     previous_market = {}
 
-    if previous_run_id is not None:
+    for event in events:
         previous_rows = conn.execute(
             """
             SELECT
-                event_id,
-                outcome_name,
-                consensus_probability
-            FROM market_benchmarks
-            WHERE collection_run_id = ?
+                mb.collection_run_id,
+                mb.event_id,
+                mb.outcome_name,
+                mb.consensus_probability
+            FROM market_benchmarks AS mb
+            JOIN collection_runs AS cr
+              ON cr.id = mb.collection_run_id
+            WHERE mb.event_id = ?
+              AND cr.sport = 'americanfootball_nfl'
+              AND cr.status = 'VALID'
+              AND cr.retrieved_at < ?
+              AND EXISTS (
+                  SELECT 1
+                  FROM odds_snapshots AS os
+                  WHERE os.collection_run_id = mb.collection_run_id
+                    AND os.event_id = mb.event_id
+                    AND os.commence_time IS NOT NULL
+                    AND os.snapshot_time < os.commence_time
+              )
+            ORDER BY cr.retrieved_at DESC
             """,
-            (previous_run_id,),
+            (
+                event["event_id"],
+                run["retrieved_at"],
+            ),
         ).fetchall()
 
-        previous_market = {
-            (row["event_id"], row["outcome_name"]):
-                row["consensus_probability"]
-            for row in previous_rows
-        }
+        if previous_rows:
+            previous_run = previous_rows[0]["collection_run_id"]
 
+            for row in previous_rows:
+                if row["collection_run_id"] != previous_run:
+                    break
+
+                previous_market[
+                    (
+                        row["event_id"],
+                        row["outcome_name"],
+                    )
+                ] = {
+                    "probability":
+                        row["consensus_probability"],
+                    "run_id":
+                        row["collection_run_id"],
+                }
     predictions = predict_run(args.run)
 
     elo = {
@@ -188,11 +297,10 @@ def main():
     print(f"K / HFA / Regress: {K_FACTOR} / {HOME_ADVANTAGE} / "
           f"{OFFSEASON_REGRESSION:.2f}")
 
-    if previous_run_id is not None:
-        print(f"Movement baseline: Run {previous_run_id}")
-    else:
-        print("Movement baseline: None")
-
+    print(
+        "Movement baseline: latest eligible "
+        "pregame snapshot per event"
+    )
     print()
 
     ranked = []
@@ -289,19 +397,40 @@ def main():
     print()
     for index, row in enumerate(ranked, start=1):
         event = row["event"]
-
+        spread_consensus, total_consensus = consensus_lines(
+            conn,
+            args.run,
+            event["event_id"],
+        )
         event_id = event["event_id"]
         home = event["home_team"]
         away = event["away_team"]
 
-        old_home = previous_market.get(
-            (event_id, home)
+        old_home_entry = previous_market.get(
+            (event["event_id"], home)
         )
 
-        old_away = previous_market.get(
-            (event_id, away)
+        old_away_entry = previous_market.get(
+            (event["event_id"], away)
         )
 
+        old_home = (
+            old_home_entry["probability"]
+            if old_home_entry
+            else None
+        )
+
+        old_away = (
+            old_away_entry["probability"]
+            if old_away_entry
+            else None
+        )
+
+        movement_run_id = (
+            old_home_entry["run_id"]
+            if old_home_entry
+            else None
+        )
         print("-" * 76)
         print(
             f"#{index}  {away} @ {home}"
@@ -317,6 +446,24 @@ def main():
              f"Market confidence: "
             f"{row['market_confidence']}"
         )
+        if spread_consensus:
+            print()
+            print("MARKET LINES")
+
+            for team, point in sorted(
+                spread_consensus.items()
+            ):
+                sign = "+" if point > 0 else ""
+                print(
+                    f"  Spread {team:<20} "
+                    f"{sign}{point:.1f}"
+                )
+
+            if total_consensus is not None:
+                print(
+                    f"  Total                    "
+                    f"{total_consensus:.1f}"
+                )
         print()
 
         print("MARKET CONSENSUS")
@@ -368,7 +515,7 @@ def main():
             print()
             print(
                 f"MARKET MOVEMENT "
-                f"(Run {previous_run_id} → {args.run})"
+                f"(Run {movement_run_id} → {args.run})"
             )
 
             print(

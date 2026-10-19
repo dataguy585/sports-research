@@ -69,6 +69,8 @@ def main(quiet=False, run_id=None):
             FROM odds_snapshots
             WHERE collection_run_id = ?
               AND market_key = 'h2h'
+              AND commence_time IS NOT NULL
+              AND snapshot_time < commence_time
             ORDER BY commence_time, sportsbook_name, outcome_name
             """,
             (latest_run,),

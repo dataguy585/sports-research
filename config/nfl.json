@@ -2,7 +2,7 @@
   "name": "nfl",
   "sport": "americanfootball_nfl",
   "regions": "us",
-  "markets": "h2h",
+  "markets": "h2h,spreads,totals",
   "odds_format": "american",
   "required_sportsbooks": [
     "fanduel",
