@@ -14,7 +14,8 @@ from models.elo import (
 )
 
 from reports.injury_context import matchup_injury_context
-from reports.nfl_week import get_nfl_week
+from reports.nfl_week import get_nfl_week, normalize_team
+from reports.efficiency_context import matchup_efficiency_context
 
 DB_PATH = Path("database/sports.db")
 ET = ZoneInfo("America/New_York")
@@ -404,7 +405,24 @@ def main():
             home_team=home,
             season=2026,
         )
-
+        if nfl_week is None:
+            efficiency_context = {
+                "status": "UNAVAILABLE",
+                "reason": (
+                    "Unable to determine NFL week "
+                    "for efficiency lookup."
+                ),
+                "snapshot": None,
+                "away": None,
+                "home": None,
+            }
+        else:
+            efficiency_context = matchup_efficiency_context(
+                away_team=normalize_team(away),
+                home_team=normalize_team(home),
+                season=2026,
+                nfl_week=nfl_week,
+            )
         if nfl_week is None:
             injury_context = {
                 "status": "UNAVAILABLE",
@@ -648,7 +666,49 @@ def main():
             args.run,
             event_id,
         )
+        nfl_week = get_nfl_week(
+            away_team=away,
+            home_team=home,
+            season=2026,
+        )
 
+        if nfl_week is None:
+            injury_context = {
+                "status": "UNAVAILABLE",
+                "reason": (
+                    "Unable to determine NFL week "
+                    "for this matchup."
+                ),
+                "snapshot": None,
+                "away": [],
+                "home": [],
+            }
+
+            efficiency_context = {
+                "status": "UNAVAILABLE",
+                "reason": (
+                    "Unable to determine NFL week "
+                    "for efficiency lookup."
+                ),
+                "snapshot": None,
+                "away": None,
+                "home": None,
+            }
+
+        else:
+            injury_context = matchup_injury_context(
+                away_team=away,
+                home_team=home,
+                season=2026,
+                expected_week=nfl_week,
+            )
+
+            efficiency_context = matchup_efficiency_context(
+                away_team=normalize_team(away),
+                home_team=normalize_team(home),
+                season=2026,
+                nfl_week=nfl_week,
+            )
         home_best_ml = best_ml.get(home)
         away_best_ml = best_ml.get(away)
 
@@ -728,6 +788,71 @@ def main():
             print("  Status: UNAVAILABLE")
             print(
                 f"  {injury_context['reason']}"
+            )
+        print()
+        print("EFFICIENCY CONTEXT")
+
+        if efficiency_context["status"] == "VALID":
+            away_eff = efficiency_context["away"]
+            home_eff = efficiency_context["home"]
+
+            through_week = (
+                efficiency_context["snapshot"]["through_week"]
+            )
+
+            print(f"  Through Week {through_week}")
+
+            print(f"  {away}")
+            print(
+                f"    Off EPA/play:      "
+                f"{away_eff['off_epa_per_play']:+.4f}"
+            )
+            print(
+                f"    Def EPA/play:      "
+                f"{away_eff['def_epa_per_play']:+.4f}"
+            )
+            print(
+                f"    Off success rate:  "
+                f"{away_eff['off_success_rate'] * 100:.1f}%"
+            )
+            print(
+                f"    Dropback EPA/play: "
+                f"{away_eff['dropback_epa_per_play']:+.4f}"
+            )
+            print(
+                f"    Rush EPA/play:     "
+                f"{away_eff['rush_epa_per_play']:+.4f}"
+            )
+
+            print(f"  {home}")
+            print(
+                f"    Off EPA/play:      "
+                f"{home_eff['off_epa_per_play']:+.4f}"
+            )
+            print(
+                f"    Def EPA/play:      "
+                f"{home_eff['def_epa_per_play']:+.4f}"
+            )
+            print(
+                f"    Off success rate:  "
+                f"{home_eff['off_success_rate'] * 100:.1f}%"
+            )
+            print(
+                f"    Dropback EPA/play: "
+                f"{home_eff['dropback_epa_per_play']:+.4f}"
+            )
+            print(
+                f"    Rush EPA/play:     "
+                f"{home_eff['rush_epa_per_play']:+.4f}"
+            )
+
+        else:
+            print(
+                f"  Status: "
+                f"{efficiency_context['status']}"
+            )
+            print(
+                f"  {efficiency_context['reason']}"
             )
         if away_best_ml or home_best_ml:
             print()

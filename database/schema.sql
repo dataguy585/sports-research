@@ -242,3 +242,67 @@ ON nfl_injuries (
     team,
     gsis_id
 );
+CREATE TABLE IF NOT EXISTS efficiency_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    retrieved_at TEXT NOT NULL,
+    season INTEGER NOT NULL,
+    through_week INTEGER NOT NULL,
+    source_latest_week INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    play_count INTEGER,
+    team_count INTEGER,
+    source TEXT NOT NULL,
+    snapshot_path TEXT,
+    payload_sha256 TEXT,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_efficiency_snapshots_season_week
+ON efficiency_snapshots (
+    season,
+    through_week,
+    retrieved_at
+);
+
+CREATE INDEX IF NOT EXISTS idx_efficiency_snapshots_status
+ON efficiency_snapshots(status);
+
+
+CREATE TABLE IF NOT EXISTS team_efficiency (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    efficiency_snapshot_id INTEGER NOT NULL,
+    season INTEGER NOT NULL,
+    through_week INTEGER NOT NULL,
+    team TEXT NOT NULL,
+
+    off_epa_per_play REAL,
+    def_epa_per_play REAL,
+
+    off_success_rate REAL,
+    def_success_rate REAL,
+
+    dropback_epa_per_play REAL,
+    rush_epa_per_play REAL,
+
+    off_plays INTEGER,
+    def_plays INTEGER,
+
+    FOREIGN KEY (efficiency_snapshot_id)
+        REFERENCES efficiency_snapshots(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_efficiency_snapshot
+ON team_efficiency(efficiency_snapshot_id);
+
+CREATE INDEX IF NOT EXISTS idx_team_efficiency_team
+ON team_efficiency (
+    season,
+    through_week,
+    team
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_efficiency_unique_snapshot
+ON team_efficiency (
+    efficiency_snapshot_id,
+    team
+);
