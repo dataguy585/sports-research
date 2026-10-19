@@ -130,6 +130,61 @@ def consensus_lines(conn, run_id, event_id):
     )
 
     return spread_consensus, total_consensus
+def best_moneylines(conn, run_id, event_id):
+    rows = conn.execute(
+        """
+        SELECT
+            outcome_name,
+            sportsbook_name,
+            price
+        FROM odds_snapshots
+        WHERE collection_run_id = ?
+          AND event_id = ?
+          AND market_key = 'h2h'
+          AND price IS NOT NULL
+          AND commence_time IS NOT NULL
+          AND snapshot_time < commence_time
+        """,
+        (
+            run_id,
+            event_id,
+        ),
+    ).fetchall()
+
+    best = {}
+
+    for row in rows:
+        team = row["outcome_name"]
+        price = row["price"]
+
+        current = best.get(team)
+
+        if (
+            current is None
+            or price > current["price"]
+        ):
+            best[team] = {
+                "price": price,
+                "sportsbook": row["sportsbook_name"],
+            }
+
+    return best
+
+
+def probability_to_american(probability):
+    if probability <= 0 or probability >= 1:
+        return None
+
+    if probability >= 0.5:
+        return round(
+            -100 * probability
+            / (1 - probability)
+        )
+
+    return round(
+        100 * (1 - probability)
+        / probability
+    )
 def previous_line_run(conn, current_run, event_id):
     row = conn.execute(
         """
@@ -563,7 +618,22 @@ def main():
         event_id = event["event_id"]
         home = event["home_team"]
         away = event["away_team"]
+        best_ml = best_moneylines(
+            conn,
+            args.run,
+            event_id,
+        )
 
+        home_best_ml = best_ml.get(home)
+        away_best_ml = best_ml.get(away)
+
+        home_fair_ml = probability_to_american(
+            row["home_market"]
+        )
+
+        away_fair_ml = probability_to_american(
+            row["away_market"]
+        )
         old_home_entry = previous_market.get(
             (event["event_id"], home)
         )
@@ -604,6 +674,48 @@ def main():
              f"Market confidence: "
             f"{row['market_confidence']}"
         )
+        if away_best_ml or home_best_ml:
+            print()
+            print("BEST AVAILABLE MONEYLINE")
+
+            if away_best_ml:
+                away_price = int(away_best_ml["price"])
+                away_sign = "+" if away_price > 0 else ""
+
+                print(
+                    f"  {away:<25} "
+                    f"{away_sign}{away_price} "
+                    f"({away_best_ml['sportsbook']})"
+                )
+
+            if home_best_ml:
+                home_price = int(home_best_ml["price"])
+                home_sign = "+" if home_price > 0 else ""
+
+                print(
+                    f"  {home:<25} "
+                    f"{home_sign}{home_price} "
+                    f"({home_best_ml['sportsbook']})"
+                )
+
+            print()
+            print("FAIR MONEYLINE — NO VIG")
+
+            if away_fair_ml is not None:
+                away_fair_sign = "+" if away_fair_ml > 0 else ""
+
+                print(
+                    f"  {away:<25} "
+                    f"{away_fair_sign}{away_fair_ml}"
+                )
+
+            if home_fair_ml is not None:
+                home_fair_sign = "+" if home_fair_ml > 0 else ""
+
+                print(
+                    f"  {home:<25} "
+                    f"{home_fair_sign}{home_fair_ml}"
+                )
         if spread_consensus:
             print()
             print("MARKET LINES")
@@ -682,7 +794,7 @@ def main():
                 )
         print()
 
-        print("MARKET CONSENSUS")
+        print("MARKET CONSENSUS - NO VIG")
         print(
             f"  {away:<25} "
             f"{row['away_market'] * 100:6.2f}%"
