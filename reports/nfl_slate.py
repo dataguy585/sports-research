@@ -394,6 +394,112 @@ def main():
         key=lambda row: abs(row["edge"]),
         reverse=True,
     )
+    notable_line_moves = []
+
+    for row in ranked:
+        event = row["event"]
+
+        current_spread, current_total = consensus_lines(
+            conn,
+            args.run,
+            event["event_id"],
+        )
+
+        prior_run_id = previous_line_run(
+            conn,
+            run,
+            event["event_id"],
+        )
+
+        if prior_run_id is None:
+            continue
+
+        prior_spread, prior_total = consensus_lines(
+            conn,
+            prior_run_id,
+            event["event_id"],
+        )
+
+        home = event["home_team"]
+        away = event["away_team"]
+
+        old_home = prior_spread.get(home)
+        new_home = current_spread.get(home)
+
+        if old_home is not None and new_home is not None:
+            move = new_home - old_home
+
+            if abs(move) >= 0.5:
+                notable_line_moves.append(
+                    (
+                        event,
+                        "spread",
+                        home,
+                        old_home,
+                        new_home,
+                        move,
+                        prior_run_id,
+                    )
+                )
+        if (
+            prior_total is not None
+            and current_total is not None
+        ):
+            move = current_total - prior_total
+
+            if abs(move) >= 0.5:
+                notable_line_moves.append(
+                    (
+                        event,
+                        "total",
+                        None,
+                        prior_total,
+                        current_total,
+                        move,
+                        prior_run_id,
+                    )
+                )
+    print("=" * 76)
+    print("NOTABLE LINE MOVEMENT")
+    print("=" * 76)
+
+    if not notable_line_moves:
+        print("No spread or total moves of 0.5+ points.")
+    else:
+        for (
+            event,
+            market_type,
+            team,
+            old_line,
+            new_line,
+            move,
+            prior_run_id,
+        ) in notable_line_moves:
+            matchup = (
+                f"{event['away_team']} @ "
+                f"{event['home_team']}"
+            )
+
+            if market_type == "spread":
+                print(
+                    f"{matchup} | "
+                    f"{team} "
+                    f"{old_line:+.1f} → "
+                    f"{new_line:+.1f} "
+                    f"({move:+.1f}) | "
+                    f"Run {prior_run_id} → {args.run}"
+                )
+            else:
+                print(
+                    f"{matchup} | "
+                    f"Total "
+                    f"{old_line:.1f} → "
+                    f"{new_line:.1f} "
+                    f"({move:+.1f}) | "
+                    f"Run {prior_run_id} → {args.run}"
+                )
+
+    print()
     print("=" * 76)
     print("GAMES TO INVESTIGATE")
     print("=" * 76)
