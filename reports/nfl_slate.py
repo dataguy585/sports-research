@@ -72,6 +72,8 @@ def consensus_lines(conn, run_id, event_id):
           AND market_key = 'spreads'
           AND sportsbook_key IN ({placeholders})
           AND point IS NOT NULL
+          AND commence_time IS NOT NULL
+          AND snapshot_time < commence_time
         """,
         (
             run_id,
@@ -91,6 +93,8 @@ def consensus_lines(conn, run_id, event_id):
           AND market_key = 'totals'
           AND sportsbook_key IN ({placeholders})
           AND point IS NOT NULL
+          AND commence_time IS NOT NULL
+          AND snapshot_time < commence_time
         """,
         (
             run_id,
@@ -126,6 +130,35 @@ def consensus_lines(conn, run_id, event_id):
     )
 
     return spread_consensus, total_consensus
+def previous_line_run(conn, current_run, event_id):
+    row = conn.execute(
+        """
+        SELECT
+            cr.id
+        FROM collection_runs AS cr
+        WHERE cr.sport = 'americanfootball_nfl'
+          AND cr.status = 'VALID'
+          AND cr.retrieved_at < ?
+          AND EXISTS (
+              SELECT 1
+              FROM odds_snapshots AS os
+              WHERE os.collection_run_id = cr.id
+                AND os.event_id = ?
+                AND os.market_key IN ('spreads', 'totals')
+                AND os.point IS NOT NULL
+                AND os.commence_time IS NOT NULL
+                AND os.snapshot_time < os.commence_time
+          )
+        ORDER BY cr.retrieved_at DESC
+        LIMIT 1
+        """,
+        (
+            current_run["retrieved_at"],
+            event_id,
+        ),
+    ).fetchone()
+
+    return row["id"] if row else None
 def load_run(conn, run_id):
     return conn.execute(
         """
@@ -402,6 +435,25 @@ def main():
             args.run,
             event["event_id"],
         )
+
+        previous_line_run_id = previous_line_run(
+            conn,
+            run,
+            event["event_id"],
+        )
+
+        previous_spread_consensus = {}
+        previous_total_consensus = None
+
+        if previous_line_run_id is not None:
+            (
+                previous_spread_consensus,
+                previous_total_consensus,
+            ) = consensus_lines(
+                conn,
+                previous_line_run_id,
+                event["event_id"],
+            )
         event_id = event["event_id"]
         home = event["home_team"]
         away = event["away_team"]
@@ -463,6 +515,64 @@ def main():
                 print(
                     f"  Total                    "
                     f"{total_consensus:.1f}"
+                )
+        if previous_line_run_id is not None:
+            print()
+            print(
+                f"LINE MOVEMENT "
+                f"(Run {previous_line_run_id} → {args.run})"
+            )
+
+            old_home_spread = previous_spread_consensus.get(home)
+            new_home_spread = spread_consensus.get(home)
+
+            old_away_spread = previous_spread_consensus.get(away)
+            new_away_spread = spread_consensus.get(away)
+
+            if (
+                old_home_spread is not None
+                and new_home_spread is not None
+            ):
+                home_spread_move = (
+                    new_home_spread - old_home_spread
+                )
+
+                print(
+                    f"  Spread {home:<20} "
+                    f"{old_home_spread:+.1f} → "
+                    f"{new_home_spread:+.1f} "
+                    f"({home_spread_move:+.1f})"
+                )
+
+            if (
+                old_away_spread is not None
+                and new_away_spread is not None
+            ):
+                away_spread_move = (
+                    new_away_spread - old_away_spread
+                )
+
+                print(
+                    f"  Spread {away:<20} "
+                    f"{old_away_spread:+.1f} → "
+                    f"{new_away_spread:+.1f} "
+                    f"({away_spread_move:+.1f})"
+                )
+
+            if (
+                previous_total_consensus is not None
+                and total_consensus is not None
+            ):
+                total_move = (
+                    total_consensus
+                    - previous_total_consensus
+                )
+
+                print(
+                    f"  Total                    "
+                    f"{previous_total_consensus:.1f} → "
+                    f"{total_consensus:.1f} "
+                    f"({total_move:+.1f})"
                 )
         print()
 
