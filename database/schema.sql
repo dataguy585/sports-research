@@ -171,3 +171,74 @@ ON decisions(decision);
 
 CREATE INDEX IF NOT EXISTS idx_decisions_settlement
 ON decisions(settled_status);
+
+CREATE TABLE IF NOT EXISTS injury_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    retrieved_at TEXT NOT NULL,
+    season INTEGER NOT NULL,
+    expected_week INTEGER NOT NULL,
+    latest_week INTEGER,
+    status TEXT NOT NULL,
+    row_count INTEGER,
+    source TEXT NOT NULL,
+    snapshot_path TEXT,
+    payload_sha256 TEXT,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_injury_snapshots_season_week
+ON injury_snapshots (
+    season,
+    expected_week,
+    retrieved_at
+);
+
+CREATE INDEX IF NOT EXISTS idx_injury_snapshots_status
+ON injury_snapshots(status);
+
+
+CREATE TABLE IF NOT EXISTS nfl_injuries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    injury_snapshot_id INTEGER NOT NULL,
+    season INTEGER NOT NULL,
+    season_type TEXT,
+    game_type TEXT,
+    team TEXT NOT NULL,
+    week INTEGER NOT NULL,
+    gsis_id TEXT,
+    position TEXT,
+    full_name TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    report_primary_injury TEXT,
+    report_secondary_injury TEXT,
+    report_status TEXT,
+    practice_primary_injury TEXT,
+    practice_secondary_injury TEXT,
+    practice_status TEXT,
+
+    FOREIGN KEY (injury_snapshot_id)
+        REFERENCES injury_snapshots(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nfl_injuries_snapshot
+ON nfl_injuries(injury_snapshot_id);
+
+CREATE INDEX IF NOT EXISTS idx_nfl_injuries_team_week
+ON nfl_injuries (
+    season,
+    week,
+    team
+);
+
+CREATE INDEX IF NOT EXISTS idx_nfl_injuries_player
+ON nfl_injuries(gsis_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nfl_injuries_unique_snapshot
+ON nfl_injuries (
+    injury_snapshot_id,
+    season,
+    week,
+    team,
+    gsis_id
+);

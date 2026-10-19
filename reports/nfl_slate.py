@@ -13,9 +13,11 @@ from models.elo import (
     OFFSEASON_REGRESSION,
 )
 
+from reports.injury_context import matchup_injury_context
+from reports.nfl_week import get_nfl_week
+
 DB_PATH = Path("database/sports.db")
 ET = ZoneInfo("America/New_York")
-
 
 def format_kickoff(value):
     if not value:
@@ -397,7 +399,30 @@ def main():
         event_id = event["event_id"]
         home = event["home_team"]
         away = event["away_team"]
+        nfl_week = get_nfl_week(
+            away_team=away,
+            home_team=home,
+            season=2026,
+        )
 
+        if nfl_week is None:
+            injury_context = {
+                "status": "UNAVAILABLE",
+                "reason": (
+                    "Unable to determine NFL week "
+                    "for this matchup."
+                ),
+                "snapshot": None,
+                "away": [],
+                "home": [],
+            }
+        else:
+            injury_context = matchup_injury_context(
+                away_team=away,
+                home_team=home,
+                season=2026,
+                expected_week=nfl_week,
+            )
         home_market = market.get(
             (event_id, home)
         )
@@ -674,6 +699,36 @@ def main():
              f"Market confidence: "
             f"{row['market_confidence']}"
         )
+        print()
+        print("INJURY CONTEXT")
+        if nfl_week is not None:
+            print(f"  NFL week: {nfl_week}")
+
+        if injury_context["status"] == "VALID":
+            print("  Status: VALID")
+            print(
+                f"  {away}: "
+                f"{len(injury_context['away'])} listed"
+            )
+            print(
+                f"  {home}: "
+                f"{len(injury_context['home'])} listed"
+            )
+
+        elif injury_context["status"] == "STALE":
+            print("  Status: STALE")
+            print(
+                f"  {injury_context['reason']}"
+            )
+            print(
+                "  Injury context withheld from analysis."
+            )
+
+        else:
+            print("  Status: UNAVAILABLE")
+            print(
+                f"  {injury_context['reason']}"
+            )
         if away_best_ml or home_best_ml:
             print()
             print("BEST AVAILABLE MONEYLINE")
