@@ -5,3 +5,5 @@ __pycache__/
 *.db
 logs/
 data/
+
+*.bak
