@@ -194,6 +194,8 @@ def main():
         "rush",
         "qb_dropback",
         "down",
+        "qb_kneel",
+        "qb_spike",
     ]
 
     df = pd.read_csv(
@@ -218,8 +220,13 @@ def main():
         df["posteam"].notna()
         & df["defteam"].notna()
         & df["epa"].notna()
+        & (
+            (df["pass"] == 1)
+            | (df["rush"] == 1)
+        )
+        & (df["qb_kneel"] != 1)
+        & (df["qb_spike"] != 1)
     ].copy()
-
     RAW_DIR.mkdir(
         parents=True,
         exist_ok=True,

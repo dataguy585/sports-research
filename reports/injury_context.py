@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from database.db import DB_PATH
-
+from reports.nfl_week import normalize_team
 
 def get_latest_injury_snapshot(conn, season, expected_week):
     return conn.execute(
@@ -112,6 +112,9 @@ def matchup_injury_context(
                 "away": [],
                 "home": [],
             }
+
+        away_team = normalize_team(away_team)
+        home_team = normalize_team(home_team)
 
         away = get_team_injuries(
             conn,
