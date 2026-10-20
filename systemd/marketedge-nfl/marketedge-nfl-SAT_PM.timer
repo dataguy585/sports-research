@@ -1,0 +1,9 @@
+[Unit]
+Description=MarketEdge NFL Saturday checkpoint
+
+[Timer]
+OnCalendar=Sat *-*-* 18:00:00 America/New_York
+Unit=marketedge-nfl-checkpoint@SAT_PM.service
+
+[Install]
+WantedBy=timers.target

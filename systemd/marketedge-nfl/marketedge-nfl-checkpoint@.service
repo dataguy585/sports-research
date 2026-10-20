@@ -1,0 +1,12 @@
+[Unit]
+Description=MarketEdge NFL checkpoint %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cory
+WorkingDirectory=/home/cory/sports-research
+ExecStart=/usr/bin/flock -n /tmp/marketedge-nfl-checkpoint.lock /home/cory/sports-research/.venv/bin/python -m scripts.checkpoint_nfl --label %i --season 2026
+StandardOutput=append:/home/cory/sports-research/logs/nfl_checkpoints.log
+StandardError=append:/home/cory/sports-research/logs/nfl_checkpoints.log

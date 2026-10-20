@@ -1,0 +1,9 @@
+[Unit]
+Description=MarketEdge NFL Sunday 12:30 checkpoint
+
+[Timer]
+OnCalendar=Sun *-*-* 12:30:00 America/New_York
+Unit=marketedge-nfl-checkpoint@SUN_1230.service
+
+[Install]
+WantedBy=timers.target
