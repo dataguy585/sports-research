@@ -28,7 +28,11 @@ def safe_mean(series):
 
     return float(series.mean())
 
-def aggregate_team_efficiency(df, before_week=None):
+def aggregate_team_efficiency(
+    df,
+    before_week=None,
+    recent_games=4,
+):
     if before_week is not None:
         df = df[
             df["week"] < before_week
@@ -38,6 +42,7 @@ def aggregate_team_efficiency(df, before_week=None):
         set(df["posteam"].dropna())
         | set(df["defteam"].dropna())
     )
+
     results = []
 
     for team in teams:
@@ -57,29 +62,105 @@ def aggregate_team_efficiency(df, before_week=None):
             offense["rush"] == 1
         ]
 
+        team_games = (
+            df[
+                (df["posteam"] == team)
+                | (df["defteam"] == team)
+            ][
+                ["week", "game_id"]
+            ]
+            .drop_duplicates()
+            .sort_values(
+                ["week", "game_id"]
+            )
+            .tail(recent_games)
+        )
+
+        recent_game_ids = (
+            team_games["game_id"]
+            .tolist()
+        )
+
+        recent_offense = offense[
+            offense["game_id"].isin(
+                recent_game_ids
+            )
+        ]
+
+        recent_defense = defense[
+            defense["game_id"].isin(
+                recent_game_ids
+            )
+        ]
+
+        recent_dropbacks = (
+            recent_offense[
+                recent_offense[
+                    "qb_dropback"
+                ] == 1
+            ]
+        )
+
+        recent_rushes = (
+            recent_offense[
+                recent_offense[
+                    "rush"
+                ] == 1
+            ]
+        )
+
         results.append(
             {
                 "team": team,
+
                 "off_epa_per_play": safe_mean(
                     offense["epa"]
                 ),
                 "def_epa_per_play": safe_mean(
                     defense["epa"]
                 ),
+
                 "off_success_rate": safe_mean(
                     offense["success"]
                 ),
                 "def_success_rate": safe_mean(
                     defense["success"]
                 ),
+
                 "dropback_epa_per_play": safe_mean(
                     dropbacks["epa"]
                 ),
                 "rush_epa_per_play": safe_mean(
                     rushes["epa"]
                 ),
+
                 "off_plays": len(offense),
                 "def_plays": len(defense),
+
+                "recent_games": len(
+                    recent_game_ids
+                ),
+
+                "recent_off_epa_per_play": safe_mean(
+                    recent_offense["epa"]
+                ),
+                "recent_def_epa_per_play": safe_mean(
+                    recent_defense["epa"]
+                ),
+
+                "recent_off_success_rate": safe_mean(
+                    recent_offense["success"]
+                ),
+                "recent_def_success_rate": safe_mean(
+                    recent_defense["success"]
+                ),
+
+                "recent_dropback_epa_per_play": safe_mean(
+                    recent_dropbacks["epa"]
+                ),
+                "recent_rush_epa_per_play": safe_mean(
+                    recent_rushes["epa"]
+                ),
             }
         )
 
@@ -147,6 +228,13 @@ def store_efficiency_snapshot(
                     row["rush_epa_per_play"],
                     row["off_plays"],
                     row["def_plays"],
+                    row["recent_games"],
+                    row["recent_off_epa_per_play"],
+                    row["recent_def_epa_per_play"],
+                    row["recent_off_success_rate"],
+                    row["recent_def_success_rate"],
+                    row["recent_dropback_epa_per_play"],
+                    row["recent_rush_epa_per_play"],
                 )
             )
 
@@ -164,9 +252,19 @@ def store_efficiency_snapshot(
                 dropback_epa_per_play,
                 rush_epa_per_play,
                 off_plays,
-                def_plays
+                def_plays,
+                recent_games,
+                recent_off_epa_per_play,
+                recent_def_epa_per_play,
+                recent_off_success_rate,
+                recent_def_success_rate,
+                recent_dropback_epa_per_play,
+                recent_rush_epa_per_play
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
             """,
             rows,
         )

@@ -55,7 +55,14 @@ def get_team_efficiency(
             dropback_epa_per_play,
             rush_epa_per_play,
             off_plays,
-            def_plays
+            def_plays,
+            recent_games,
+            recent_off_epa_per_play,
+            recent_def_epa_per_play,
+            recent_off_success_rate,
+            recent_def_success_rate,
+            recent_dropback_epa_per_play,
+            recent_rush_epa_per_play
         FROM team_efficiency
         WHERE efficiency_snapshot_id = ?
           AND team = ?

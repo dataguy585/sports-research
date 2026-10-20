@@ -286,7 +286,16 @@ CREATE TABLE IF NOT EXISTS team_efficiency (
 
     off_plays INTEGER,
     def_plays INTEGER,
+    recent_games INTEGER,
 
+    recent_off_epa_per_play REAL,
+    recent_def_epa_per_play REAL,
+
+    recent_off_success_rate REAL,
+    recent_def_success_rate REAL,
+
+    recent_dropback_epa_per_play REAL,
+    recent_rush_epa_per_play REAL,
     FOREIGN KEY (efficiency_snapshot_id)
         REFERENCES efficiency_snapshots(id)
 );

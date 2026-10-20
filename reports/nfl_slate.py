@@ -820,48 +820,67 @@ def main():
 
             print(f"  Through Week {through_week}")
 
+            recent_games = away_eff["recent_games"]
+
+            print(
+                f"  Season vs Last {recent_games} Games"
+            )
+            print()
+
             print(f"  {away}")
             print(
                 f"    Off EPA/play:      "
-                f"{away_eff['off_epa_per_play']:+.4f}"
+                f"{away_eff['off_epa_per_play']:+.4f} season | "
+                f"{away_eff['recent_off_epa_per_play']:+.4f} recent"
             )
             print(
                 f"    Def EPA/play:      "
-                f"{away_eff['def_epa_per_play']:+.4f}"
+                f"{away_eff['def_epa_per_play']:+.4f} season | "
+                f"{away_eff['recent_def_epa_per_play']:+.4f} recent"
             )
             print(
                 f"    Off success rate:  "
-                f"{away_eff['off_success_rate'] * 100:.1f}%"
+                f"{away_eff['off_success_rate'] * 100:.1f}% season | "
+                f"{away_eff['recent_off_success_rate'] * 100:.1f}% recent"
             )
             print(
                 f"    Dropback EPA/play: "
-                f"{away_eff['dropback_epa_per_play']:+.4f}"
+                f"{away_eff['dropback_epa_per_play']:+.4f} season | "
+                f"{away_eff['recent_dropback_epa_per_play']:+.4f} recent"
             )
             print(
                 f"    Rush EPA/play:     "
-                f"{away_eff['rush_epa_per_play']:+.4f}"
+                f"{away_eff['rush_epa_per_play']:+.4f} season | "
+                f"{away_eff['recent_rush_epa_per_play']:+.4f} recent"
             )
+
+            print()
 
             print(f"  {home}")
             print(
                 f"    Off EPA/play:      "
-                f"{home_eff['off_epa_per_play']:+.4f}"
+                f"{home_eff['off_epa_per_play']:+.4f} season | "
+                f"{home_eff['recent_off_epa_per_play']:+.4f} recent"
             )
             print(
                 f"    Def EPA/play:      "
-                f"{home_eff['def_epa_per_play']:+.4f}"
+                f"{home_eff['def_epa_per_play']:+.4f} season | "
+                f"{home_eff['recent_def_epa_per_play']:+.4f} recent"
             )
             print(
                 f"    Off success rate:  "
-                f"{home_eff['off_success_rate'] * 100:.1f}%"
+                f"{home_eff['off_success_rate'] * 100:.1f}% season | "
+                f"{home_eff['recent_off_success_rate'] * 100:.1f}% recent"
             )
             print(
                 f"    Dropback EPA/play: "
-                f"{home_eff['dropback_epa_per_play']:+.4f}"
+                f"{home_eff['dropback_epa_per_play']:+.4f} season | "
+                f"{home_eff['recent_dropback_epa_per_play']:+.4f} recent"
             )
             print(
                 f"    Rush EPA/play:     "
-                f"{home_eff['rush_epa_per_play']:+.4f}"
+                f"{home_eff['rush_epa_per_play']:+.4f} season | "
+                f"{home_eff['recent_rush_epa_per_play']:+.4f} recent"
             )
 
         else:
@@ -907,7 +926,24 @@ def main():
                         "  Weather exposure: "
                         "DEPENDS ON ROOF STATUS"
                     )
+            freshness = weather_context.get(
+                "freshness"
+            )
 
+            if freshness is not None:
+                hours_to_kickoff = (
+                    freshness["hours_to_kickoff"]
+                )
+
+                print(
+                    f"  Forecast status: "
+                    f"{freshness['label']}"
+                )
+                print(
+                    f"  Forecast horizon: "
+                    f"{hours_to_kickoff:.1f} hours "
+                    f"before kickoff"
+                )
                 if weather["temperature_f"] is None:
                     print(
                         "  Forecast: UNAVAILABLE"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime
 
 from database.db import DB_PATH
 from reports.nfl_week import normalize_team
@@ -36,6 +37,35 @@ def get_latest_weather_snapshot(
         ),
     ).fetchone()
 
+def weather_freshness(
+    retrieved_at,
+    kickoff_et,
+):
+    retrieved = datetime.fromisoformat(
+        retrieved_at
+    )
+
+    kickoff = datetime.fromisoformat(
+        kickoff_et
+    )
+
+    hours_to_kickoff = (
+        kickoff - retrieved
+    ).total_seconds() / 3600
+
+    if hours_to_kickoff > 72:
+        label = "PRELIMINARY"
+    elif hours_to_kickoff > 24:
+        label = "DEVELOPING"
+    elif hours_to_kickoff > 6:
+        label = "HIGH"
+    else:
+        label = "GAMEDAY"
+
+    return {
+        "label": label,
+        "hours_to_kickoff": hours_to_kickoff,
+    }
 
 def matchup_weather_context(
     away_team,
@@ -116,10 +146,20 @@ def matchup_weather_context(
                 "snapshot": dict(snapshot),
                 "weather": None,
             }
+        freshness = None
 
+        if (
+            row["weather_relevant"]
+            and row["kickoff_et"]
+        ):
+            freshness = weather_freshness(
+                snapshot["retrieved_at"],
+                row["kickoff_et"],
+            )
         return {
             "status": snapshot["status"],
             "reason": None,
             "snapshot": dict(snapshot),
             "weather": dict(row),
+            "freshness": freshness,
         }
