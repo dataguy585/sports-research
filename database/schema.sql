@@ -393,3 +393,178 @@ ON nfl_weather (
     away_team,
     home_team
 );
+
+CREATE TABLE IF NOT EXISTS prediction_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    created_at TEXT NOT NULL,
+    sport TEXT NOT NULL,
+    season INTEGER,
+    week INTEGER,
+
+    collection_run_id INTEGER NOT NULL,
+    event_id TEXT NOT NULL,
+    commence_time TEXT NOT NULL,
+    home_team TEXT NOT NULL,
+    away_team TEXT NOT NULL,
+
+    model_version TEXT NOT NULL,
+    snapshot_type TEXT NOT NULL DEFAULT 'RESEARCH',
+
+    sportsbook_count INTEGER,
+
+    home_market_probability REAL,
+    away_market_probability REAL,
+
+    home_model_probability REAL,
+    away_model_probability REAL,
+
+    model_disagreement_team TEXT,
+    model_disagreement_pp REAL,
+    research_status TEXT,
+
+    home_best_moneyline REAL,
+    home_best_moneyline_book TEXT,
+    away_best_moneyline REAL,
+    away_best_moneyline_book TEXT,
+
+    home_fair_moneyline REAL,
+    away_fair_moneyline REAL,
+
+    home_spread REAL,
+    away_spread REAL,
+    total REAL,
+
+    efficiency_snapshot_id INTEGER,
+    efficiency_through_week INTEGER,
+
+    home_off_epa_per_play REAL,
+    home_def_epa_per_play REAL,
+    home_off_success_rate REAL,
+    home_dropback_epa_per_play REAL,
+    home_rush_epa_per_play REAL,
+    home_recent_games INTEGER,
+    home_recent_off_epa_per_play REAL,
+    home_recent_def_epa_per_play REAL,
+    home_recent_off_success_rate REAL,
+    home_recent_dropback_epa_per_play REAL,
+    home_recent_rush_epa_per_play REAL,
+
+    away_off_epa_per_play REAL,
+    away_def_epa_per_play REAL,
+    away_off_success_rate REAL,
+    away_dropback_epa_per_play REAL,
+    away_rush_epa_per_play REAL,
+    away_recent_games INTEGER,
+    away_recent_off_epa_per_play REAL,
+    away_recent_def_epa_per_play REAL,
+    away_recent_off_success_rate REAL,
+    away_recent_dropback_epa_per_play REAL,
+    away_recent_rush_epa_per_play REAL,
+
+    injury_snapshot_id INTEGER,
+    injury_status TEXT,
+    injury_expected_week INTEGER,
+    injury_latest_week INTEGER,
+
+    weather_snapshot_id INTEGER,
+    weather_status TEXT,
+    weather_freshness TEXT,
+    weather_horizon_hours REAL,
+    stadium TEXT,
+    roof_type TEXT,
+    weather_relevant INTEGER,
+    temperature_f REAL,
+    precipitation_in REAL,
+    wind_mph REAL,
+    wind_gust_mph REAL,
+
+    notes TEXT,
+
+    FOREIGN KEY (collection_run_id)
+        REFERENCES collection_runs(id),
+
+    FOREIGN KEY (efficiency_snapshot_id)
+        REFERENCES efficiency_snapshots(id),
+
+    FOREIGN KEY (injury_snapshot_id)
+        REFERENCES injury_snapshots(id),
+
+    FOREIGN KEY (weather_snapshot_id)
+        REFERENCES weather_snapshots(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_snapshots_unique
+ON prediction_snapshots (
+    collection_run_id,
+    event_id,
+    model_version,
+    snapshot_type
+);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_event
+ON prediction_snapshots(event_id);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_run
+ON prediction_snapshots(collection_run_id);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_kickoff
+ON prediction_snapshots(commence_time);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_status
+ON prediction_snapshots(research_status);
+
+CREATE TABLE IF NOT EXISTS prediction_grades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    prediction_snapshot_id INTEGER NOT NULL,
+    graded_at TEXT NOT NULL,
+
+    game_result_id INTEGER NOT NULL,
+
+    home_score INTEGER NOT NULL,
+    away_score INTEGER NOT NULL,
+    winner TEXT NOT NULL,
+
+    model_pick TEXT,
+    market_pick TEXT,
+
+    model_correct INTEGER,
+    market_correct INTEGER,
+
+    home_model_brier REAL,
+    home_market_brier REAL,
+
+    home_model_log_loss REAL,
+    home_market_log_loss REAL,
+
+    closing_collection_run_id INTEGER,
+    closing_home_market_probability REAL,
+    closing_away_market_probability REAL,
+
+    model_clv_pp REAL,
+    market_move_toward_model_pp REAL,
+
+    hypothetical_side TEXT,
+    hypothetical_price REAL,
+    hypothetical_result TEXT,
+    hypothetical_profit_units REAL,
+
+    FOREIGN KEY (prediction_snapshot_id)
+        REFERENCES prediction_snapshots(id),
+
+    FOREIGN KEY (game_result_id)
+        REFERENCES game_results(id),
+
+    FOREIGN KEY (closing_collection_run_id)
+        REFERENCES collection_runs(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prediction_grades_snapshot
+ON prediction_grades(prediction_snapshot_id);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_grades_result
+ON prediction_grades(game_result_id);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_grades_closing_run
+ON prediction_grades(closing_collection_run_id);
