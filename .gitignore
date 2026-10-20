@@ -7,3 +7,6 @@ logs/
 data/
 
 *.bak
+
+# Generated MarketEdge reports
+reports/output/
