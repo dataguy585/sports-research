@@ -15,7 +15,7 @@ from reports.nfl_slate import (
     probability_to_american,
     research_status,
 )
-from reports.nfl_week import get_nfl_week, normalize_team
+from reports.nfl_week import get_current_nfl_week, get_nfl_week, normalize_team
 from reports.weather_context import matchup_weather_context
 
 
@@ -83,6 +83,15 @@ def freeze_run(
         for row in predictions
     }
 
+    current_week = get_current_nfl_week(season)
+
+    if current_week is None:
+        raise SystemExit(
+            f"Unable to determine current NFL week for season {season}"
+        )
+
+    print(f"Current NFL week: {current_week}")
+
     inserted = 0
     skipped = 0
 
@@ -124,52 +133,34 @@ def freeze_run(
             season=season,
         )
 
-        if nfl_week is None:
-            injury_context = {
-                "status": "UNAVAILABLE",
-                "reason": "Unable to determine NFL week.",
-                "snapshot": None,
-                "away": [],
-                "home": [],
-            }
-
-            efficiency_context = {
-                "status": "UNAVAILABLE",
-                "reason": "Unable to determine NFL week.",
-                "snapshot": None,
-                "away": None,
-                "home": None,
-            }
-
-            weather_context = {
-                "status": "UNAVAILABLE",
-                "reason": "Unable to determine NFL week.",
-                "snapshot": None,
-                "weather": None,
-                "freshness": None,
-            }
-
-        else:
-            injury_context = matchup_injury_context(
-                away_team=away,
-                home_team=home,
-                season=season,
-                expected_week=nfl_week,
+        if nfl_week != current_week:
+            print(
+                f"SKIP {away} @ {home}: "
+                f"week {nfl_week} != current week {current_week}"
             )
+            skipped += 1
+            continue
 
-            efficiency_context = matchup_efficiency_context(
-                away_team=normalize_team(away),
-                home_team=normalize_team(home),
-                season=season,
-                nfl_week=nfl_week,
-            )
+        injury_context = matchup_injury_context(
+            away_team=away,
+            home_team=home,
+            season=season,
+            expected_week=nfl_week,
+        )
 
-            weather_context = matchup_weather_context(
-                away_team=away,
-                home_team=home,
-                season=season,
-                week=nfl_week,
-            )
+        efficiency_context = matchup_efficiency_context(
+            away_team=normalize_team(away),
+            home_team=normalize_team(home),
+            season=season,
+            nfl_week=nfl_week,
+        )
+
+        weather_context = matchup_weather_context(
+            away_team=away,
+            home_team=home,
+            season=season,
+            week=nfl_week,
+        )
 
         spread_consensus, total_consensus = consensus_lines(
             conn,
