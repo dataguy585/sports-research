@@ -306,3 +306,81 @@ ON team_efficiency (
     efficiency_snapshot_id,
     team
 );
+
+CREATE TABLE IF NOT EXISTS weather_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    retrieved_at TEXT NOT NULL,
+    season INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    game_count INTEGER,
+    weather_game_count INTEGER,
+    indoor_game_count INTEGER,
+    source TEXT NOT NULL,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_weather_snapshots_season_week
+ON weather_snapshots (
+    season,
+    week,
+    retrieved_at
+);
+
+CREATE INDEX IF NOT EXISTS idx_weather_snapshots_status
+ON weather_snapshots(status);
+
+
+CREATE TABLE IF NOT EXISTS nfl_weather (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    weather_snapshot_id INTEGER NOT NULL,
+
+    season INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+
+    away_team TEXT NOT NULL,
+    home_team TEXT NOT NULL,
+
+    stadium_id TEXT,
+    stadium TEXT,
+    city TEXT,
+
+    roof_type TEXT NOT NULL,
+    weather_relevant INTEGER NOT NULL,
+
+    kickoff_et TEXT,
+    local_kickoff TEXT,
+    forecast_time TEXT,
+
+    temperature_f REAL,
+    precipitation_in REAL,
+    weather_code INTEGER,
+    wind_mph REAL,
+    wind_gust_mph REAL,
+
+    snapshot_path TEXT,
+
+    FOREIGN KEY (weather_snapshot_id)
+        REFERENCES weather_snapshots(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nfl_weather_snapshot
+ON nfl_weather(weather_snapshot_id);
+
+CREATE INDEX IF NOT EXISTS idx_nfl_weather_matchup
+ON nfl_weather (
+    season,
+    week,
+    away_team,
+    home_team
+);
+
+CREATE INDEX IF NOT EXISTS idx_nfl_weather_stadium
+ON nfl_weather(stadium_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nfl_weather_unique_snapshot
+ON nfl_weather (
+    weather_snapshot_id,
+    away_team,
+    home_team
+);

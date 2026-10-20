@@ -16,6 +16,7 @@ from models.elo import (
 from reports.injury_context import matchup_injury_context
 from reports.nfl_week import get_nfl_week, normalize_team
 from reports.efficiency_context import matchup_efficiency_context
+from reports.weather_context import matchup_weather_context
 
 DB_PATH = Path("database/sports.db")
 ET = ZoneInfo("America/New_York")
@@ -695,6 +696,16 @@ def main():
                 "home": None,
             }
 
+            weather_context = {
+                "status": "UNAVAILABLE",
+                "reason": (
+                    "Unable to determine NFL week "
+                    "for weather lookup."
+                ),
+                "snapshot": None,
+                "weather": None,
+            }
+
         else:
             injury_context = matchup_injury_context(
                 away_team=away,
@@ -708,6 +719,13 @@ def main():
                 home_team=normalize_team(home),
                 season=2026,
                 nfl_week=nfl_week,
+            )
+
+            weather_context = matchup_weather_context(
+                away_team=away,
+                home_team=home,
+                season=2026,
+                week=nfl_week,
             )
         home_best_ml = best_ml.get(home)
         away_best_ml = best_ml.get(away)
@@ -854,6 +872,64 @@ def main():
             print(
                 f"  {efficiency_context['reason']}"
             )
+
+        print()
+        print("WEATHER / VENUE CONTEXT")
+
+        if weather_context["status"] == "UNAVAILABLE":
+            print(
+                f"  Status: "
+                f"{weather_context['status']}"
+            )
+            print(
+                f"  {weather_context['reason']}"
+            )
+        else:
+            weather = weather_context["weather"]
+
+            print(
+                f"  Stadium: "
+                f"{weather['stadium']}"
+            )
+            print(
+                f"  Roof:    "
+                f"{weather['roof_type'].upper()}"
+            )
+
+            if not weather["weather_relevant"]:
+                print(
+                    "  Weather impact: "
+                    "NONE - indoor venue"
+                )
+            else:
+                if weather["roof_type"] == "retractable":
+                    print(
+                        "  Weather exposure: "
+                        "DEPENDS ON ROOF STATUS"
+                    )
+
+                if weather["temperature_f"] is None:
+                    print(
+                        "  Forecast: UNAVAILABLE"
+                    )
+                else:
+                    print(
+                        f"  Temperature: "
+                        f"{weather['temperature_f']:.1f} F"
+                    )
+                    print(
+                        f"  Wind:        "
+                        f"{weather['wind_mph']:.1f} mph"
+                    )
+                    print(
+                        f"  Gusts:       "
+                        f"{weather['wind_gust_mph']:.1f} mph"
+                    )
+                    print(
+                        f"  Precip:      "
+                        f"{weather['precipitation_in']:.2f} in"
+                    )
+
         if away_best_ml or home_best_ml:
             print()
             print("BEST AVAILABLE MONEYLINE")
