@@ -8,10 +8,17 @@ from pathlib import Path
 import pandas as pd
 
 from database.db import DB_PATH
-
+from reports.nfl_week import get_current_nfl_week
 
 SEASON = 2026
-EXPECTED_WEEK = 7
+
+EXPECTED_WEEK = get_current_nfl_week(SEASON)
+
+if EXPECTED_WEEK is None:
+    raise RuntimeError(
+        f"Unable to determine current NFL week "
+        f"for season {SEASON}."
+    )
 
 SOURCE_URL = (
     "https://github.com/nflverse/nflverse-data/"

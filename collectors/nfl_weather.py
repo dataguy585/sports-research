@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from reports.nfl_week import get_current_nfl_week
 from database.db import DB_PATH
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -21,7 +22,14 @@ from reports.nfl_venues import (
 
 
 SEASON = 2026
-WEEK = 7
+
+WEEK = get_current_nfl_week(SEASON)
+
+if WEEK is None:
+    raise RuntimeError(
+        f"Unable to determine current NFL week "
+        f"for season {SEASON}."
+    )
 
 SCHEDULE_URL = (
     "https://github.com/nflverse/"

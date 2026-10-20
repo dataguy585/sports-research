@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -55,6 +57,69 @@ def normalize_team(team):
     return TEAM_ABBR.get(
         team,
         team,
+    )
+
+
+def get_current_nfl_week(
+    season,
+    now=None,
+):
+    df = load_schedule()
+
+    if now is None:
+        now = datetime.now(
+            ZoneInfo("America/New_York")
+        )
+
+    games = df[
+        (df["season"] == season)
+        & (df["game_type"] == "REG")
+    ].copy()
+
+    games = games[
+        games["gameday"].notna()
+        & games["gametime"].notna()
+        & games["week"].notna()
+    ].copy()
+
+    games["kickoff"] = pd.to_datetime(
+        games["gameday"].astype(str)
+        + " "
+        + games["gametime"].astype(str),
+        errors="coerce",
+    )
+
+    games = games[
+        games["kickoff"].notna()
+    ].copy()
+
+    games["kickoff"] = (
+        games["kickoff"]
+        .dt.tz_localize(
+            "America/New_York",
+            ambiguous="NaT",
+            nonexistent="shift_forward",
+        )
+    )
+
+    upcoming = games[
+        games["kickoff"] >= now
+    ].sort_values("kickoff")
+
+    if not upcoming.empty:
+        return int(
+            upcoming.iloc[0]["week"]
+        )
+
+    latest = games.sort_values(
+        "kickoff"
+    ).tail(1)
+
+    if latest.empty:
+        return None
+
+    return int(
+        latest.iloc[0]["week"]
     )
 
 
