@@ -1,0 +1,12 @@
+[Unit]
+Description=MarketEdge NFL injury refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cory
+WorkingDirectory=/home/cory/sports-research
+ExecStart=/usr/bin/flock -n /tmp/marketedge-nfl-injuries.lock /home/cory/sports-research/.venv/bin/python -m scripts.refresh_nfl_injuries
+StandardOutput=append:/home/cory/sports-research/logs/nfl_injuries_refresh.log
+StandardError=append:/home/cory/sports-research/logs/nfl_injuries_refresh.log

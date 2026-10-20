@@ -23,7 +23,14 @@ def get_latest_injury_snapshot(conn, season, expected_week):
         FROM injury_snapshots
         WHERE season = ?
           AND expected_week = ?
-        ORDER BY retrieved_at DESC
+        ORDER BY
+            CASE
+                WHEN status = 'VALID'
+                 AND latest_week = expected_week THEN 0
+                WHEN status = 'VALID' THEN 1
+                ELSE 2
+            END,
+            retrieved_at DESC
         LIMIT 1
         """,
         (

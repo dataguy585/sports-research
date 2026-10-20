@@ -1,0 +1,13 @@
+[Unit]
+Description=MarketEdge NFL injury refresh schedule
+
+[Timer]
+OnCalendar=Wed..Sat *-*-* 12:15:00 America/New_York
+OnCalendar=Wed..Sat *-*-* 17:15:00 America/New_York
+OnCalendar=Wed..Sat *-*-* 22:15:00 America/New_York
+OnCalendar=Sun *-*-* 08:15:00 America/New_York
+OnCalendar=Sun *-*-* 11:15:00 America/New_York
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
