@@ -1,0 +1,18 @@
+[Unit]
+Description=MarketEdge NFL results refresh and prediction grading
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cory
+WorkingDirectory=/home/cory/sports-research
+
+ExecStart=/usr/bin/flock -w 300 /tmp/marketedge-nfl-results.lock /home/cory/sports-research/.venv/bin/python -m scripts.backfill_nfl_results --seasons 2026
+ExecStart=/usr/bin/flock -w 300 /tmp/marketedge-nfl-results.lock /home/cory/sports-research/.venv/bin/python -m scripts.grade_nfl_predictions_v2 --apply
+
+StandardOutput=append:/home/cory/sports-research/logs/nfl_results.log
+StandardError=append:/home/cory/sports-research/logs/nfl_results.log
+
+[Install]
+WantedBy=multi-user.target

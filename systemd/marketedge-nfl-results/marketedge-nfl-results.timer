@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily MarketEdge NFL results refresh and grading
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/New_York
+Persistent=true
+Unit=marketedge-nfl-results.service
+
+[Install]
+WantedBy=timers.target
