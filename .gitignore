@@ -10,3 +10,4 @@ data/
 
 # Generated MarketEdge reports
 reports/output/
+scripts/*.py.bak-*
