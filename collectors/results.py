@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import requests
 from dotenv import load_dotenv
 
-from database.results import upsert_game_result
+from database.results_v2 import upsert_game_result
 
 
 load_dotenv()

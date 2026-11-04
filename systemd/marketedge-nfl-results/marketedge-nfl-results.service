@@ -10,6 +10,7 @@ WorkingDirectory=/home/cory/sports-research
 
 ExecStart=/usr/bin/flock -w 300 /tmp/marketedge-nfl-results.lock /home/cory/sports-research/.venv/bin/python -m scripts.backfill_nfl_results --seasons 2026
 ExecStart=/usr/bin/flock -w 300 /tmp/marketedge-nfl-results.lock /home/cory/sports-research/.venv/bin/python -m scripts.grade_nfl_predictions_v2 --apply
+ExecStart=/usr/bin/flock -w 300 /tmp/marketedge-nfl-results.lock /home/cory/sports-research/.venv/bin/python -m scripts.check_grade_consistency
 
 StandardOutput=append:/home/cory/sports-research/logs/nfl_results.log
 StandardError=append:/home/cory/sports-research/logs/nfl_results.log

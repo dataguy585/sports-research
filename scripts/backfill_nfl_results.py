@@ -4,7 +4,7 @@ import io
 import pandas as pd
 import requests
 
-from database.results import upsert_game_result
+from database.results_v2 import upsert_game_result
 
 
 NFLVERSE_GAMES_URL = (
