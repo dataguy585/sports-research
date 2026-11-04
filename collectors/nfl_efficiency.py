@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+import requests
 
 from database.db import DB_PATH
 
@@ -18,6 +20,78 @@ SOURCE_URL = (
 )
 
 RAW_DIR = Path("data/raw/efficiency/nfl")
+
+
+
+NFL_SCHEDULE_URL = (
+    "https://github.com/nflverse/nflverse-data/"
+    "releases/download/schedules/games.csv"
+)
+
+
+def latest_completed_week(season):
+    response = requests.get(
+        NFL_SCHEDULE_URL,
+        timeout=60,
+    )
+    response.raise_for_status()
+
+    schedule = pd.read_csv(
+        io.BytesIO(response.content),
+        low_memory=False,
+    )
+
+    required = {
+        "season", "week", "game_type",
+        "game_id", "home_score", "away_score",
+    }
+
+    if not required.issubset(schedule.columns):
+        raise RuntimeError("NFL schedule missing required columns")
+
+    schedule = schedule[
+        (schedule["season"] == season)
+        & (schedule["game_type"] == "REG")
+    ].copy()
+
+    if schedule.empty:
+        raise RuntimeError("No regular-season schedule found")
+
+    schedule["completed"] = (
+        schedule["home_score"].notna()
+        & schedule["away_score"].notna()
+    )
+
+    week_status = schedule.groupby("week").agg(
+        games=("game_id", "count"),
+        completed=("completed", "sum"),
+    )
+
+    completed_through = 0
+
+    for week in sorted(week_status.index):
+        week = int(week)
+
+        # Require consecutive weeks.
+        if week != completed_through + 1:
+            break
+
+        row = week_status.loc[week]
+
+        if row["games"] == 0:
+            break
+
+        if row["completed"] != row["games"]:
+            break
+
+        completed_through = week
+
+    if completed_through == 0:
+        raise RuntimeError(
+            "No fully completed regular-season weeks found"
+        )
+
+    return completed_through
 
 
 def safe_mean(series):
@@ -310,9 +384,26 @@ def main():
             "No regular-season play-by-play rows found."
         )
 
-    latest_week = int(
-        df["week"].max()
+    source_latest_week = int(df["week"].max())
+
+    completed_week = latest_completed_week(SEASON)
+
+    latest_week = min(
+        source_latest_week,
+        completed_week,
     )
+
+    print(f"Source latest week: {source_latest_week}")
+    print(f"Schedule completed through: {completed_week}")
+
+    df = df[
+        df["week"] <= latest_week
+    ].copy()
+
+    if df.empty:
+        raise RuntimeError(
+            "No play-by-play data through completed weeks"
+        )
 
     usable = df[
         df["posteam"].notna()
